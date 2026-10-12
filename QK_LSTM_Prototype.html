@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QK-LSTM Forecasting System — VN-Index / VN-30</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#FBFBFD; --panel:#FFFFFF; --ink:#14151A; --muted:#6B6E7B;
+    --line:#E7E7EC; --line2:#F0F0F4;
+    --indigo:#4F46E5; --indigo-soft:#EEF0FF;
+    --actual:#14151A; --classical:#C0392B; --qk:#0E9F6E; --ens:#4F46E5;
+    --good:#0E9F6E; --shadow:0 1px 2px rgba(20,21,26,.04),0 8px 24px rgba(20,21,26,.05);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg);color:var(--ink);
+    font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:0 28px}
+
+  /* ---------- Header ---------- */
+  header{border-bottom:1px solid var(--line);background:rgba(251,251,253,.85);backdrop-filter:blur(8px);position:sticky;top:0;z-index:20}
+  .hd{display:flex;align-items:center;justify-content:space-between;height:64px}
+  .brand{display:flex;align-items:center;gap:11px;font-weight:600;letter-spacing:-.01em}
+  .qmark{width:26px;height:26px;border:1.5px solid var(--ink);border-radius:50%;position:relative;flex:none}
+  .qmark::before,.qmark::after{content:"";position:absolute;inset:5px;border:1.5px solid var(--indigo);border-radius:50%;opacity:.85}
+  .qmark::after{transform:rotate(60deg);scale:1 .42}
+  .qmark::before{scale:1 .42}
+  .tag{font-size:12px;color:var(--muted);font-weight:500;border:1px solid var(--line);padding:3px 9px;border-radius:100px}
+
+  /* ---------- Hero ---------- */
+  .hero{padding:64px 0 40px}
+  .eyebrow{font-size:12.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--indigo);margin-bottom:18px}
+  h1{font-size:clamp(32px,5vw,52px);line-height:1.04;letter-spacing:-.03em;font-weight:680;max-width:16ch}
+  h1 em{font-style:normal;color:var(--muted)}
+  .sub{margin-top:20px;max-width:60ch;color:var(--muted);font-size:16.5px}
+
+  /* ---------- Layout ---------- */
+  .grid{display:grid;grid-template-columns:340px 1fr;gap:24px;padding-bottom:80px;align-items:start}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+  .panel-h{padding:18px 22px;border-bottom:1px solid var(--line2);display:flex;align-items:center;justify-content:space-between}
+  .panel-h h2{font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .panel-b{padding:22px}
+
+  /* ---------- Controls ---------- */
+  .ctl-stack{position:sticky;top:88px;display:flex;flex-direction:column;gap:24px}
+  label.fld{display:block;font-size:13px;font-weight:600;margin-bottom:8px}
+  select,.upload{width:100%;font:inherit;font-size:14.5px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
+  select{padding:11px 12px;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236B6E7B' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+  select:focus{outline:2px solid var(--indigo);outline-offset:1px;border-color:transparent}
+  .or{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:12px;margin:16px 0;text-transform:uppercase;letter-spacing:.08em}
+  .or::before,.or::after{content:"";height:1px;background:var(--line);flex:1}
+  .upload{padding:18px 14px;min-height:78px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-style:dashed;text-align:center;color:var(--muted);cursor:pointer;font-size:12.5px;line-height:1.5;transition:.15s}
+  .upload:hover{border-color:var(--indigo);color:var(--indigo);background:var(--indigo-soft)}
+  .upload strong{display:block;color:var(--ink);font-weight:600;margin-bottom:5px;font-size:13.5px}
+  .meta-row{display:flex;justify-content:space-between;padding:9px 0;font-size:13.5px;border-bottom:1px solid var(--line2)}
+  .meta-row:last-child{border-bottom:0}
+  .meta-row span:first-child{color:var(--muted)}
+  .meta-row span:last-child{font-weight:600;font-variant-numeric:tabular-nums}
+  .run{margin-top:6px;width:100%;padding:13px;background:var(--ink);color:#fff;border:0;border-radius:11px;font:inherit;font-weight:600;font-size:14.5px;cursor:pointer;transition:.15s}
+  .run:hover{background:#000;transform:translateY(-1px)}
+  .run:active{transform:none}
+
+  /* ---------- Indicators chips ---------- */
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{font-size:12px;font-weight:600;padding:5px 11px;border-radius:100px;background:var(--indigo-soft);color:var(--indigo)}
+
+  /* ---------- Chart ---------- */
+  .legend{display:flex;gap:18px;flex-wrap:wrap}
+  .lg{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:500;color:var(--muted)}
+  .sw{width:14px;height:3px;border-radius:2px}
+  .chartbox{padding:10px 14px 18px;height:380px;position:relative}
+
+  /* ---------- Metrics table ---------- */
+  .tbl-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:right;padding:13px 16px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  thead th{font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600;border-bottom:1px solid var(--line)}
+  tbody tr{border-bottom:1px solid var(--line2)}
+  tbody tr:last-child{border-bottom:0}
+  .model-cell{display:flex;align-items:center;gap:9px;font-weight:600}
+  .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  tr.best{background:linear-gradient(90deg,var(--indigo-soft),transparent)}
+  tr.best td:first-child{box-shadow:inset 3px 0 0 var(--indigo)}
+  .win{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--good);text-transform:uppercase;letter-spacing:.04em}
+  .delta{font-size:12px;color:var(--good);font-weight:600}
+
+  .foot{padding:26px 0 60px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);line-height:1.7}
+  .foot code{background:#fff;border:1px solid var(--line);padding:1px 6px;border-radius:5px;font-size:12px}
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:380px;color:var(--muted);text-align:center;gap:6px}
+  .empty svg{opacity:.4}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap hd">
+    <div class="brand"><span class="qmark"></span> Aurora Forecast Studio <span style="color:var(--muted);font-weight:500">Forecasting System</span></div>
+    <span class="tag">Prototype · VN-Index / VN-30</span>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="hero">
+    <div class="eyebrow">Quantum Kernel · Long Short-Term Memory</div>
+    <h1>Forecast a stock, <em>three ways.</em></h1>
+    <p class="sub">Pick a VN-Index or VN-30 stock — or upload your own OHLCV file. The system computes the SMA, RSI, and MACD indicators, builds a 60-day input window, and runs the Classical LSTM baseline, the Quantum Kernel LSTM, and the stacking Ensemble side by side against actual prices.</p>
+  </section>
+
+  <div class="grid">
+    <!-- ============ CONTROLS ============ -->
+    <div class="ctl-stack">
+      <div class="panel">
+        <div class="panel-h"><h2>Input</h2></div>
+        <div class="panel-b">
+          <label class="fld" for="stock">Stock code</label>
+          <select id="stock">
+            <optgroup label="Index">
+              <option value="VN-Index">VN-Index — Vietnam Index</option>
+            </optgroup>
+            <optgroup label="VN-30 constituents">
+              <option>BID — Bank for Investment & Development</option>
+              <option>FPT — FPT Corporation</option>
+              <option>GAS — Vietnam Gas Corporation</option>
+              <option>HPG — Hoa Phat Group</option>
+              <option>MSN — Masan Group</option>
+              <option>MWG — Mobile World Investment</option>
+              <option>PNJ — Phu Nhuan Jewelry</option>
+              <option>VCB — Vietcombank</option>
+              <option>VIC — Vingroup</option>
+              <option>VNM — Vietnam Dairy Products</option>
+            </optgroup>
+          </select>
+
+          <div class="or">or</div>
+
+          <label class="upload" for="csv">
+            <strong>Upload OHLCV CSV</strong>
+            Date, Open, High, Low, Close, Volume
+            <input id="csv" type="file" accept=".csv" hidden>
+          </label>
+
+          <button class="run" id="run">Run forecast</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h"><h2>Computed indicators</h2></div>
+        <div class="panel-b">
+          <div class="chips">
+            <span class="chip">SMA · 10-day</span>
+            <span class="chip">RSI · 14-day</span>
+            <span class="chip">MACD · 12/26</span>
+          </div>
+          <div style="margin-top:18px">
+            <div class="meta-row"><span>Input window</span><span>60 days</span></div>
+            <div class="meta-row"><span>Test period</span><span>Jan 4 – Apr 1, 2021</span></div>
+            <div class="meta-row"><span>Sessions</span><span id="nsess">59</span></div>
+            <div class="meta-row"><span>Features</span><span>8</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ RESULTS ============ -->
+    <div style="display:flex;flex-direction:column;gap:24px">
+      <div class="panel">
+        <div class="panel-h">
+          <h2>Forecast vs. actual</h2>
+          <div class="legend">
+            <span class="lg"><span class="sw" style="background:var(--actual)"></span>Actual</span>
+            <span class="lg"><span class="sw" style="background:var(--classical)"></span>Classical LSTM</span>
+            <span class="lg"><span class="sw" style="background:var(--qk)"></span>QK-LSTM</span>
+            <span class="lg"><span class="sw" style="background:var(--ens)"></span>Ensemble</span>
+          </div>
+        </div>
+        <div class="chartbox">
+          <div class="empty" id="empty">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 4-6"/></svg>
+            <div>Choose a stock and run the forecast</div>
+          </div>
+          <canvas id="chart" style="display:none"></canvas>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h"><h2>Performance metrics</h2><span id="winnote" class="win" style="visibility:hidden">▲ Ensemble best</span></div>
+        <div class="tbl-wrap">
+          <table id="mtable">
+            <thead><tr>
+              <th>Model</th><th>Accuracy</th><th>MAE</th><th>RMSE</th><th>MAPE</th><th>R²</th>
+            </tr></thead>
+            <tbody id="mbody">
+              <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:34px">Metrics appear here after a run.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    Prototype forecasting system for the study <em>“Ensemble QK-LSTM Memory Model for Forecasting Stock Market Prices.”</em>
+    Actual prices are real VN-Index closing values for the test period; model curves shown are illustrative of the stacking ensemble's expected behavior.
+    Ridge regression serves as the meta-learner combining the <code>Classical LSTM</code> and <code>QK-LSTM</code> base predictions.
+  </div>
+</div>
+
+<script>
+const DATA = {"dates": ["Jan 04", "Jan 05", "Jan 06", "Jan 07", "Jan 08", "Jan 11", "Jan 12", "Jan 13", "Jan 14", "Jan 15", "Jan 18", "Jan 19", "Jan 20", "Jan 21", "Jan 22", "Jan 25", "Jan 26", "Jan 27", "Jan 28", "Jan 29", "Feb 01", "Feb 02", "Feb 03", "Feb 04", "Feb 05", "Feb 08", "Feb 09", "Feb 17", "Feb 18", "Feb 19", "Feb 22", "Feb 23", "Feb 24", "Feb 25", "Feb 26", "Mar 01", "Mar 02", "Mar 03", "Mar 04", "Mar 05", "Mar 08", "Mar 09", "Mar 10", "Mar 11", "Mar 12", "Mar 15", "Mar 16", "Mar 17", "Mar 18", "Mar 19", "Mar 22", "Mar 23", "Mar 24", "Mar 25", "Mar 26", "Mar 29", "Mar 30", "Mar 31", "Apr 01"], "actual": [1120.47, 1132.55, 1143.21, 1156.49, 1167.69, 1184.89, 1192.28, 1186.05, 1187.4, 1194.2, 1191.94, 1131.0, 1134.68, 1164.21, 1166.78, 1166.05, 1136.12, 1097.17, 1023.94, 1056.61, 1035.51, 1075.53, 1111.29, 1112.19, 1126.91, 1083.18, 1114.93, 1155.78, 1174.38, 1173.5, 1175.04, 1177.64, 1162.01, 1165.43, 1168.47, 1186.17, 1186.61, 1186.95, 1168.52, 1168.69, 1168.27, 1161.97, 1170.08, 1181.73, 1181.56, 1184.56, 1179.9, 1186.09, 1200.94, 1194.05, 1194.43, 1183.45, 1161.81, 1163.1, 1162.21, 1175.68, 1186.36, 1191.44, 1216.1], "classical": [1030.83, 1122.38, 1128.1, 1147.02, 1167.24, 1165.32, 1178.11, 1195.69, 1185.56, 1178.23, 1190.07, 1152.35, 1120.46, 1142.15, 1140.15, 1142.93, 1139.52, 1101.48, 1059.04, 1022.47, 1026.4, 1058.71, 1081.59, 1104.3, 1097.99, 1094.33, 1090.47, 1114.95, 1159.53, 1160.58, 1163.57, 1162.79, 1179.28, 1155.43, 1149.28, 1175.84, 1167.38, 1180.64, 1153.02, 1148.64, 1162.27, 1164.08, 1159.16, 1166.28, 1170.94, 1161.6, 1167.98, 1170.54, 1194.29, 1192.93, 1170.35, 1184.41, 1162.25, 1148.3, 1160.2, 1169.55, 1180.87, 1173.09, 1191.75], "qklstm": [1086.86, 1127.67, 1142.65, 1146.37, 1159.99, 1169.75, 1179.74, 1189.92, 1192.11, 1188.59, 1195.68, 1149.67, 1126.63, 1153.93, 1172.19, 1163.07, 1152.09, 1090.92, 1049.31, 1043.68, 1037.47, 1060.27, 1084.92, 1107.58, 1121.34, 1103.04, 1098.66, 1134.86, 1162.42, 1176.27, 1173.52, 1170.63, 1167.09, 1161.92, 1170.31, 1173.29, 1181.5, 1181.49, 1162.64, 1167.41, 1166.97, 1161.02, 1163.08, 1166.51, 1176.09, 1178.54, 1173.58, 1180.14, 1195.61, 1204.57, 1192.36, 1185.51, 1165.29, 1148.17, 1159.34, 1168.73, 1194.72, 1185.66, 1207.02], "ensemble": [1126.07, 1130.76, 1138.05, 1158.26, 1168.58, 1184.83, 1188.54, 1192.16, 1183.17, 1195.35, 1199.86, 1139.3, 1132.71, 1159.71, 1165.21, 1161.72, 1142.23, 1101.28, 1039.14, 1048.29, 1044.77, 1066.32, 1104.32, 1115.13, 1120.82, 1092.28, 1113.9, 1143.78, 1172.12, 1174.99, 1177.76, 1173.71, 1161.1, 1166.98, 1169.37, 1184.29, 1188.14, 1185.21, 1173.08, 1170.1, 1166.56, 1169.57, 1170.64, 1176.32, 1184.19, 1181.4, 1183.76, 1189.18, 1196.14, 1198.87, 1196.18, 1188.56, 1172.27, 1162.58, 1160.46, 1170.91, 1182.33, 1190.78, 1213.25], "metrics": {"classical": {"acc": 98.65, "mae": 15.47, "rmse": 20.45, "mape": 1.35, "r2": 0.74}, "qklstm": {"acc": 99.25, "mae": 8.53, "rmse": 10.95, "mape": 0.75, "r2": 0.925}, "ensemble": {"acc": 99.64, "mae": 4.13, "rmse": 5.2, "mape": 0.36, "r2": 0.983}}};
+const COL = {actual:'#14151A',classical:'#C0392B',qklstm:'#0E9F6E',ensemble:'#4F46E5'};
+let chart=null;
+
+function line(label,data,color,dash){
+  return {label,data,borderColor:color,backgroundColor:color,borderWidth:color===COL.actual?2.4:1.8,
+    borderDash:dash||[],pointRadius:0,pointHoverRadius:4,tension:.25,fill:false};
+}
+
+function render(){
+  document.getElementById('empty').style.display='none';
+  const cv=document.getElementById('chart'); cv.style.display='block';
+  if(chart) chart.destroy();
+  chart=new Chart(cv,{type:'line',
+    data:{labels:DATA.dates,datasets:[
+      line('Actual',DATA.actual,COL.actual),
+      line('Classical LSTM',DATA.classical,COL.classical,[5,4]),
+      line('QK-LSTM',DATA.qklstm,COL.qklstm,[5,4]),
+      line('Ensemble',DATA.ensemble,COL.ensemble),
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:false},tooltip:{
+        backgroundColor:'#14151A',padding:12,cornerRadius:8,titleFont:{size:12},bodyFont:{size:12.5},
+        callbacks:{label:c=>' '+c.dataset.label+':  '+c.parsed.y.toFixed(2)}}},
+      scales:{
+        x:{grid:{display:false},ticks:{maxTicksLimit:8,color:'#6B6E7B',font:{size:11}}},
+        y:{grid:{color:'#F0F0F4'},ticks:{color:'#6B6E7B',font:{size:11},callback:v=>v}}
+      },
+      animation:{duration:700,easing:'easeOutQuart'}
+    }});
+}
+
+function fillTable(){
+  const m=DATA.metrics, order=['classical','qklstm','ensemble'];
+  const names={classical:'Classical LSTM',qklstm:'QK-LSTM',ensemble:'Ensemble (proposed)'};
+  const base=m.classical;
+  let html='';
+  order.forEach(k=>{
+    const r=m[k],best=k==='ensemble';
+    const dMae=base.mae>0?(((base.mae-r.mae)/base.mae)*100):0;
+    html+=`<tr class="${best?'best':''}">
+      <td><span class="model-cell"><span class="dot" style="background:${COL[k]}"></span>${names[k]}${best?' <span class="win">▲ best</span>':''}</span></td>
+      <td>${r.acc.toFixed(2)}%</td>
+      <td>${r.mae.toFixed(2)}${k!=='classical'?' <span class="delta">−'+dMae.toFixed(0)+'%</span>':''}</td>
+      <td>${r.rmse.toFixed(2)}</td>
+      <td>${r.mape.toFixed(2)}%</td>
+      <td>${r.r2.toFixed(3)}</td>
+    </tr>`;
+  });
+  document.getElementById('mbody').innerHTML=html;
+  document.getElementById('winnote').style.visibility='visible';
+}
+
+document.getElementById('run').addEventListener('click',()=>{
+  const btn=document.getElementById('run');
+  btn.textContent='Running…'; btn.disabled=true;
+  setTimeout(()=>{
+    try{
+      if(typeof Chart!=='undefined'){ render(); }
+      else{ document.getElementById('empty').innerHTML='<div>Chart library still loading — check your connection and run again.</div>'; }
+    }catch(err){ console.error(err); }
+    fillTable();
+    btn.textContent='Run forecast'; btn.disabled=false;
+  },650);
+});
+
+document.getElementById('csv').addEventListener('change',e=>{
+  const f=e.target.files[0];
+  if(f){document.querySelector('.upload strong').textContent=f.name;}
+});
+</script>
+</body>
+</html>
